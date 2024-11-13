@@ -1,101 +1,148 @@
-import Image from "next/image";
+"use client";
+import { useState } from "react";
+import { useSession, signIn, signOut } from "next-auth/react";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+
+interface Playlist {
+  id: string;
+  name: string;
+  tracks: {
+    total: number;
+  };
+}
 
 export default function Home() {
-  return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-8 row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-semibold">
-              app/page.tsx
-            </code>
-            .
-          </li>
-          <li>Save and see your changes instantly.</li>
-        </ol>
+  const { data: session } = useSession();
+  const [playlists, setPlaylists] = useState<Playlist[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:min-w-44"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+  const fetchPlaylists = async () => {
+    try {
+      setLoading(true);
+      const response = await fetch("/api/spotify");
+      const data = await response.json();
+      setPlaylists(data.items || []);
+    } catch (err) {
+      setError("Failed to fetch playlists");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const sortPlaylist = async (playlistId: string) => {
+    try {
+      setLoading(true);
+      setError("");
+
+      // First, fetch all tracks from the playlist
+      const tracksResponse = await fetch(
+        `https://api.spotify.com/v1/playlists/${playlistId}/tracks`,
+        {
+          headers: {
+            Authorization: `Bearer ${session?.accessToken}`,
+          },
+        }
+      );
+      const tracksData = await tracksResponse.json();
+
+      // Send tracks to be sorted
+      const response = await fetch("/api/spotify", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          playlistId,
+          tracks: tracksData.items,
+        }),
+      });
+
+      if (!response.ok) throw new Error("Failed to sort playlist");
+
+      setSuccess("Playlist successfully sorted!");
+      setTimeout(() => setSuccess(""), 3000);
+    } catch (err) {
+      setError("Failed to sort playlist");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (!session) {
+    return (
+      <div className="min-h-screen bg-gray-100 flex flex-col items-center justify-center p-4">
+        <Card className="w-full max-w-md">
+          <CardHeader>
+            <CardTitle>Spotify Playlist Organizer</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="mb-4">
+              Sign in with your Spotify account to organize your playlists.
+            </p>
+            <Button onClick={() => signIn("spotify")} className="w-full">
+              Sign in with Spotify
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-100 p-4">
+      <div className="max-w-4xl mx-auto">
+        <div className="flex justify-between items-center mb-6">
+          <h1 className="text-2xl font-bold">Spotify Playlist Organizer</h1>
+          <Button onClick={() => signOut()} variant="outline">
+            Sign Out
+          </Button>
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-6 flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+
+        {error && (
+          <Alert variant="destructive" className="mb-4">
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
+
+        {success && (
+          <Alert className="mb-4">
+            <AlertDescription>{success}</AlertDescription>
+          </Alert>
+        )}
+
+        {playlists.length === 0 ? (
+          <Button onClick={fetchPlaylists} disabled={loading}>
+            {loading ? "Loading..." : "Load My Playlists"}
+          </Button>
+        ) : (
+          <div className="grid gap-4">
+            {playlists.map((playlist) => (
+              <Card key={playlist.id}>
+                <CardHeader>
+                  <div className="flex justify-between items-center">
+                    <CardTitle>{playlist.name}</CardTitle>
+                    <Button
+                      onClick={() => sortPlaylist(playlist.id)}
+                      disabled={loading}
+                    >
+                      Sort Alphabetically
+                    </Button>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-sm text-gray-500">
+                    {playlist.tracks.total} tracks
+                  </p>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
